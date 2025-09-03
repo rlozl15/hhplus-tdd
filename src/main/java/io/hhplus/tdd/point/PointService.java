@@ -26,15 +26,11 @@ public class PointService {
     }
 
     public UserPoint charge(long userId, long amount) {
-        if (userId < 1) {
-            throw new IllegalArgumentException(ERROR_INVALID_USER_ID);
-        }
-
         if (amount < 1) {
             throw new IllegalArgumentException(ERROR_INVALID_AMOUNT);
         }
 
-        UserPoint storedUserPoint = userPointTable.selectById(userId);
+        UserPoint storedUserPoint = getPoint(userId);
         long newAmount = storedUserPoint.point() + amount;
 
         if (newAmount > MAXIMUM_POINT) {
