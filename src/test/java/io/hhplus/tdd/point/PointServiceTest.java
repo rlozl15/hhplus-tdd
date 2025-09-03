@@ -22,6 +22,66 @@ public class PointServiceTest {
     @InjectMocks
     private PointService pointService;
 
+    /*
+     Nested 구조를 통해서 각 테스트 코드가 어디에 속하는지 명확하게 확인할 수 있도록 함
+     */
+
+    @Nested
+    @DisplayName("포인트 조회 테스트")
+    public class GetPointTest {
+        /*
+         [작성이유]
+         기존 사용자가 포인트를 조회할 경우, 정상적으로 현재 보유하고 있는 포인트를 반환하는지 확인하기 위해 작성함
+         */
+        @Test
+        void 기존_사용자가_포인트를_조회할_때_정상적으로_보유_포인트가_반환된다() {
+            // given
+            long userId = 1L;
+            long existingPoint = 100_000L;
+            UserPoint userPoint = new UserPoint(userId, existingPoint, System.currentTimeMillis());
+            when(userPointTable.selectById(userId)).thenReturn(userPoint);
+
+            // when
+            UserPoint result = pointService.getPoint(userId);
+
+            // then
+            assertThat(result.id()).isEqualTo(userId);
+            assertThat(result.point()).isEqualTo(existingPoint);
+        }
+        /*
+         [작성이유]
+         포인트가 0인 신규 사용자가 포인트를 조회할 경우, 정상적으로 현재 보유하고 있는 포인트를 반환하는지 확인하기 위해 작성함
+         */
+        @Test
+        void 신규_사용자가_포인트를_조회할_때_정상적으로_보유_포인트가_반환된다() {
+            // given
+            long userId = 1L;
+            UserPoint userPoint = UserPoint.empty(userId);
+            when(userPointTable.selectById(userId)).thenReturn(userPoint);
+
+            // when
+            UserPoint result = pointService.getPoint(userId);
+
+            // then
+            assertThat(result.id()).isEqualTo(userId);
+            assertThat(result.point()).isEqualTo(0);
+        }
+        /*
+         [작성이유]
+         사용자 정보가 잘못되었을 경우 (0 이하의 ID), 예외가 발생하는지 확인하기 위해 작성함
+         */
+        @Test
+        void 사용자_정보가_잘못되었을_때_조회하면_예외가_발생한다() {
+            // given
+            long invalidUserId = -1L;
+
+            // when & then
+            assertThatThrownBy(() -> pointService.getPoint(invalidUserId))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("잘못된 사용자 ID입니다.");
+        }
+    }
+
     @Nested
     @DisplayName("포인트 충전 테스트")
     public class ChargePointTest {
