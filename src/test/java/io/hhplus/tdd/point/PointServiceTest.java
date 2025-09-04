@@ -10,6 +10,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Arrays;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -352,6 +355,70 @@ public class PointServiceTest {
             assertThatThrownBy(() -> pointService.use(userId, usePoint))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("사용 포인트는 최소 사용 단위인 100의 배수여야 합니다.");
+        }
+    }
+
+    @Nested
+    @DisplayName("포인트 내역 조회 테스트")
+    public class GetPointHistoryTest {
+        /*
+         [작성이유]
+         기존 사용자가 포인트 충전 및 사용 내역을 조회할 경우, 정상적으로 포인트 내역 리스트가 반환되는지 확인하기 위해 작성함
+         */
+        @Test
+        void 기존_사용자가_충전_및_사용_내역을_조회할_때_정상적으로_조회된다() {
+            // given
+            long userId = 1L;
+            List<PointHistory> expectedHistory = Arrays.asList(
+                    new PointHistory(1L, userId, 100_000L, TransactionType.CHARGE, System.currentTimeMillis()),
+                    new PointHistory(2L, userId, 10_000L, TransactionType.USE, System.currentTimeMillis())
+            );
+
+            when(pointHistoryTable.selectAllByUserId(userId)).thenReturn(expectedHistory);
+
+            // when
+            List<PointHistory> result = pointService.getPointHistory(userId);
+
+            // then
+            assertThat(result).hasSize(2);
+            assertThat(result).extracting("userId").containsOnly(userId);
+            assertThat(result).extracting("amount").containsExactlyInAnyOrder(100_000L, 10_000L);
+        }
+        /*
+         [작성이유]
+         사용자가 포인트 내역을 조회할 경우, 목록이 id를 기준으로 내림차순으로 조회되는지 확인하기 위해 작성함
+         */
+        @Test
+        void 포인트_내역을_조회하면_내림차순으로_조회된다() {
+            //given
+            long userId = 1L;
+            List<PointHistory> expectedHistory = Arrays.asList(
+                    new PointHistory(1L, userId, 100_000L, TransactionType.CHARGE, System.currentTimeMillis()),
+                    new PointHistory(2L, userId, 10_000L, TransactionType.USE, System.currentTimeMillis())
+            );
+            when(pointHistoryTable.selectAllByUserId(userId)).thenReturn(expectedHistory);
+
+            // when
+            List<PointHistory> result = pointService.getPointHistory(userId);
+
+            // then
+            assertThat(result).extracting("id").containsExactly(2L, 1L);
+
+        }
+        /*
+         [작성이유]
+         내역이 없는 사용자가 포인트 내역을 조회할 경우, 정상적으로 빈 리스트의 포인트 내역이 반환되는지 확인하기 위해 작성함
+         */
+        @Test
+        void 내역이_없는_사용자가_충전_및_사용_내역을_조회할_때_정상적으로_빈_리스트가_반환된다() {
+            //given
+            long userId = 1L;
+
+            // when
+            List<PointHistory> result = pointService.getPointHistory(userId);
+
+            // then
+            assertThat(result).isEmpty();
         }
     }
 }

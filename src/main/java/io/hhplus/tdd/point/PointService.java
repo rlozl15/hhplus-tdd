@@ -5,6 +5,9 @@ import io.hhplus.tdd.database.UserPointTable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class PointService {
@@ -66,5 +69,12 @@ public class PointService {
         pointHistoryTable.insert(userId, amount, TransactionType.USE, System.currentTimeMillis());
 
         return updatedUserPoint;
+    }
+
+    public List<PointHistory> getPointHistory(long userId) {
+        return pointHistoryTable.selectAllByUserId(userId)
+                .stream()
+                .sorted(Comparator.comparing(PointHistory::id).reversed())
+                .toList();
     }
 }
