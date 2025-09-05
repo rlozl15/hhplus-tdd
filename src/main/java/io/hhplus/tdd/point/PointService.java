@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +25,13 @@ public class PointService {
     private static final String ERROR_INVALID_USE_AMOUNT = "사용 포인트는 최소 100포인트 이상이어야 합니다.";
     private static final String ERROR_MINIMUM_POINT_UNIT = "사용 포인트는 최소 사용 단위인 100의 배수여야 합니다.";
 
+    // 사용자별로 동기화 객체 생성
+    private final ConcurrentHashMap<Long, Object> userLocks = new ConcurrentHashMap<>();
+
+    private Object getLock(long userId) {
+        return userLocks.computeIfAbsent(userId, k -> new Object());
+    }
+
     public UserPoint getPoint(long userId) {
         if (userId < 1) {
             throw new IllegalArgumentException(ERROR_INVALID_USER_ID);
@@ -36,39 +44,42 @@ public class PointService {
             throw new IllegalArgumentException(ERROR_INVALID_CHARGE_AMOUNT);
         }
 
-        UserPoint storedUserPoint = getPoint(userId);
-        long newAmount = storedUserPoint.point() + amount;
+        Object lock = getLock(userId);
+        synchronized (lock) {
+            UserPoint storedUserPoint = getPoint(userId);
+            long newAmount = storedUserPoint.point() + amount;
 
-        if (newAmount > MAXIMUM_POINT) {
-            throw new IllegalArgumentException(ERROR_EXCEED_MAXIMUM_POINT);
+            if (newAmount > MAXIMUM_POINT) {
+                throw new IllegalArgumentException(ERROR_EXCEED_MAXIMUM_POINT);
+            }
+
+            UserPoint updatedUserPoint = userPointTable.insertOrUpdate(userId, newAmount);
+            pointHistoryTable.insert(userId, amount, TransactionType.CHARGE, System.currentTimeMillis());
+            return updatedUserPoint;
         }
-
-        UserPoint updatedUserPoint = userPointTable.insertOrUpdate(userId, newAmount);
-        pointHistoryTable.insert(userId, amount, TransactionType.CHARGE, System.currentTimeMillis());
-
-        return updatedUserPoint;
     }
 
     public UserPoint use(long userId, long amount) {
         if (amount < 100) {
             throw new IllegalArgumentException(ERROR_INVALID_USE_AMOUNT);
         }
-
         if (amount % 100 != 0) {
             throw new IllegalArgumentException(ERROR_MINIMUM_POINT_UNIT);
         }
 
-        UserPoint storedUserPoint = getPoint(userId);
-        long newAmount = storedUserPoint.point() - amount;
+        Object lock = getLock(userId);
+        synchronized (lock) {
+            UserPoint storedUserPoint = getPoint(userId);
+            long newAmount = storedUserPoint.point() - amount;
 
-        if (newAmount < 0) {
-            throw new IllegalArgumentException(ERROR_INSUFFICIENT_POINT);
+            if (newAmount < 0) {
+                throw new IllegalArgumentException(ERROR_INSUFFICIENT_POINT);
+            }
+
+            UserPoint updatedUserPoint = userPointTable.insertOrUpdate(userId, newAmount);
+            pointHistoryTable.insert(userId, amount, TransactionType.USE, System.currentTimeMillis());
+            return updatedUserPoint;
         }
-
-        UserPoint updatedUserPoint = userPointTable.insertOrUpdate(userId, newAmount);
-        pointHistoryTable.insert(userId, amount, TransactionType.USE, System.currentTimeMillis());
-
-        return updatedUserPoint;
     }
 
     public List<PointHistory> getPointHistory(long userId) {
