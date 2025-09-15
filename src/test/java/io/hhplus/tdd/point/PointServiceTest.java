@@ -6,6 +6,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -73,10 +75,10 @@ public class PointServiceTest {
          * [작성이유]
          * 사용자 정보가 잘못되었을 경우 (0 이하의 ID), 예외가 발생하는지 확인하기 위해 작성함
          */
-        @Test
-        void 사용자_정보가_잘못되었을_때_조회하면_예외가_발생한다() {
-            // given
-            long invalidUserId = -1L;
+        @ParameterizedTest
+        @ValueSource(longs = {-10, 0})
+        void 사용자_정보가_잘못되었을_때_조회하면_예외가_발생한다(long invalidUserId) {
+            // given invalidUserId
 
             // when & then
             assertThatThrownBy(() -> pointService.getPoint(invalidUserId))
@@ -91,14 +93,15 @@ public class PointServiceTest {
         /**
          * [작성이유]
          * 기존 사용자가 포인트를 충전할 경우, 정상적으로 포인트가 업데이트 되는지 확인하기 위해 작성함
-         * 경계값인 보유 10만 포인트 충전 90만 포인트로 충전해봄 (최대 보유 가능한 포인트가 100만)
+         * 최소 충전 가능 포인트 1 과 최대 보유 가능한 포인트 100만을 고려하여
+         * 경계값 1과 900_000L(기존 포인트 100_000L 가정), 그 동등 분할 범위 대표값 2, 899_999L를 테스트함
          */
-        @Test
-        void 기존_사용자가_적정_포인트를_충전할_때_포인트가_정상적으로_누적된다() {
+        @ParameterizedTest
+        @ValueSource(longs = {1, 2, 899_999L, 900_000L})
+        void 기존_사용자가_적정_포인트를_충전할_때_포인트가_정상적으로_누적된다(long chargeAmount) {
             // given
             long userId = 1L;
             long existingPoint = 100_000L;
-            long chargeAmount = 900_000L;
             long newAmount = existingPoint + chargeAmount;
 
             UserPoint existingUserPoint = new UserPoint(userId, existingPoint, System.currentTimeMillis());
@@ -117,13 +120,14 @@ public class PointServiceTest {
         /**
          * [작성이유]
          * 신규 사용자가 포인트를 충전할 경우, 정상적으로 신규 사용자의 포인트가 업데이트 되는지 확인하기 위해 작성함
-         * 경계값인 100만 포인트로 충전해봄 (최대 보유 가능한 포인트가 100만)
+         * 최소 충전 가능 포인트 1 과 최대 보유 가능한 포인트 100만을 고려하여
+         * 경계값 1, 1_000_000L, 그리고 동등 분할 범위 대표값으로 2, 999_999L를 테스트함
          */
-        @Test
-        void 신규_사용자가_적정_포인트를_충전할_때_포인트가_정상적으로_누적된다() {
+        @ParameterizedTest
+        @ValueSource(longs = {1, 2, 999_999L, 1_000_000L})
+        void 신규_사용자가_적정_포인트를_충전할_때_포인트가_정상적으로_누적된다(long chargeAmount) {
             // given
             long userId = 1L;
-            long chargeAmount = 1_000_000L;
 
             UserPoint existingUserPoint = UserPoint.empty(userId);
             UserPoint updatedUserPoint = new UserPoint(userId, chargeAmount, System.currentTimeMillis());
@@ -167,10 +171,10 @@ public class PointServiceTest {
          * [작성이유]
          * 사용자 정보가 잘못되었을 경우 (0 이하의 ID), 예외가 발생하는지 확인하기 위해 작성함
          */
-        @Test
-        void 사용자_정보가_잘못되었을_때_충전하면_예외가_발생한다() {
+        @ParameterizedTest
+        @ValueSource(longs = {-10, 0})
+        void 사용자_정보가_잘못되었을_때_충전하면_예외가_발생한다(long invalidUserId) {
             // given
-            long invalidUserId = 0L;
             long chargeAmount = 5000L;
 
             // when & then
@@ -181,12 +185,13 @@ public class PointServiceTest {
         /**
          * [작성이유]
          * 사용자가 충전 불가능한 0 이하의 포인트를 충전할 경우, 예외가 발생하는지 확인하기 위해 작성함
+         * 경계값 0, 동등 분할 범위 대표값 -1을 테스트함
          */
-        @Test
-        void 충전할_포인트가_0_이하일_때_충전하면_예외가_발생한다() {
+        @ParameterizedTest
+        @ValueSource(longs = {-1, 0})
+        void 충전할_포인트가_0_이하일_때_충전하면_예외가_발생한다(long invalidChargeAmount) {
             // given
             long userId = 1L;
-            long invalidChargeAmount  = 0L;
 
             // when & then
             assertThatThrownBy(() -> pointService.charge(userId, invalidChargeAmount))
@@ -196,19 +201,20 @@ public class PointServiceTest {
         /**
          * [작성이유]
          * 충전했을 때 누적 포인트가 100만을 넘는 경우, 예외가 발생하는지 확인하기 위해 작성함 (최대 보유 가능한 포인트가 100만)
+         * 경계값 1_000_001L, 동등 분할 범위 대표값 1_000_100L을 테스트함
          */
-        @Test
-        void 충전_후_누적_포인트가_1_000_000을_넘으면_예외가_발생한다() {
+        @ParameterizedTest
+        @ValueSource(longs = {1_000_001L, 1_000_100L})
+        void 충전_후_누적_포인트가_1_000_000을_넘으면_예외가_발생한다(long invalidChargeAmount) {
             // given
             long userId = 1L;
-            long chargeAmount  = 1_000_001L;
 
             UserPoint existingUserPoint = UserPoint.empty(userId);
 
             when(userPointTable.selectById(userId)).thenReturn(existingUserPoint);
 
             // when & then
-            assertThatThrownBy(() -> pointService.charge(userId, chargeAmount))
+            assertThatThrownBy(() -> pointService.charge(userId, invalidChargeAmount))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("최대 보유 가능한 포인트는 100만 포인트입니다.");
         }
@@ -220,45 +226,21 @@ public class PointServiceTest {
         /**
          * [작성이유]
          * 기존 사용자가 현재 보유하고 있는 포인트 이내를 사용할 경우, 정상적으로 포인트가 사용되는지 확인하기 위해 작성함
+         * 경계값 100, 100_000L(보유 포인트), 동등 분할 범위 대표값 1_000L을 테스트함
          */
-        @Test
-        void 기존_사용자가_보유_포인트보다_적은_포인트를_사용할_때_포인트가_정상적으로_사용된다() {
+        @ParameterizedTest
+        @ValueSource(longs = {100, 1_000L, 100_000L})
+        void 기존_사용자가_보유_포인트보다_적은_포인트를_사용할_때_포인트가_정상적으로_사용된다(long usePoint) {
             // given
             long userId = 1L;
             long existingPoint = 100_000L;
-            long usePoint = 10_000L;
-            long remainPoint = 90_000L;
+            long remainPoint = existingPoint - usePoint;
 
             UserPoint userPoint = new UserPoint(userId, existingPoint, System.currentTimeMillis());
             UserPoint updatedUserPoint = new UserPoint(userId, remainPoint, System.currentTimeMillis());
 
             when(userPointTable.selectById(userId)).thenReturn(userPoint);
             when(userPointTable.insertOrUpdate(userId, remainPoint)).thenReturn(updatedUserPoint);
-
-            // when
-            UserPoint result = pointService.use(userId, usePoint);
-
-            // then
-            assertThat(result.id()).isEqualTo(userId);
-            assertThat(result.point()).isEqualTo(remainPoint);
-        }
-        /**
-         * [작성이유]
-         * 기존 사용자가 현재 보유하고 있는 모든 포인트를 사용할 경우, 정상적으로 포인트가 사용되는지 확인하기 위해 작성함
-         */
-        @Test
-        void 기존_사용자가_보유_포인트_전부를_사용할_때_포인트가_정상적으로_사용된다() {
-            // given
-            long userId = 1L;
-            long existingPoint = 100_000L;
-            long usePoint = 100_000L;
-            long remainPoint = 0L;
-
-            UserPoint userPoint = new UserPoint(userId, existingPoint, System.currentTimeMillis());
-            UserPoint updatedUserPoint = new UserPoint(userId, 0, System.currentTimeMillis());
-
-            when(userPointTable.selectById(userId)).thenReturn(userPoint);
-            when(userPointTable.insertOrUpdate(userId, 0)).thenReturn(updatedUserPoint);
 
             // when
             UserPoint result = pointService.use(userId, usePoint);
